@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8" />
+    <title>Lab 5 - Two Tier App</title>
+</head>
+<body>
+    <h1>Lab 5 - Formulaire</h1>
+
+    <h2>Ajouter une personne</h2>
+    <form method="POST">
+        <label>Nom :
+            <input type="text" name="name" required />
+        </label><br />
+        <label>Email :
+            <input type="email" name="email" required />
+        </label><br />
+        <button type="submit">Enregistrer</button>
+    </form>
+
+    <h2>Liste enregistrée</h2>
+    <table border="1" cellpadding="5">
+        <tr><th>ID</th><th>Nom</th><th>Email</th></tr>
+        {% for p in people %}
+        <tr>
+            <td>{{ p.id }}</td>
+            <td>{{ p.name }}</td>
+            <td>{{ p.email }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+</body>
+</html>
