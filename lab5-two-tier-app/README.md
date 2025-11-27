@@ -38,8 +38,8 @@ kubectl get all -n lab5-app
 
 ## 5. Test de l'application
 
-1. Récupérer l'IP d'un nœud K3s.
-2. Accéder à : `http://<IP_NODE>:30080/`
+1. IP du nœud K3s : `10.174.154.128`
+2. Accéder à : `http://10.174.154.128:30080/`
 3. Remplir le formulaire (nom, email) et valider.
 4. Vérifier que les données apparaissent dans la table des enregistrements.
 
@@ -73,3 +73,28 @@ lab5-two-tier-app/
 - Justification de l'usage de NodePort pour exposer l'application.
 - Justification de ClusterIP pour la base de données (accès interne uniquement).
 - Explication de l'utilisation des variables d'environnement dans les manifests YAML.
+
+## 8. Validation et Preuves de Succès
+
+Consultez le document `docs/VALIDATION.md` pour :
+- La checklist complète de conformité avec l'énoncé du LAB
+- Les instructions détaillées pour capturer les screenshots requis
+- Les commandes de vérification à exécuter
+- La liste des 10 screenshots à fournir dans `docs/screenshots/`
+
+### Commandes de Validation Rapide
+
+```bash
+# Vérifier que tous les pods sont Running
+kubectl get pods -n lab5-app
+
+# Vérifier les services
+kubectl get svc -n lab5-app
+
+# Tester l'accès web
+curl http://10.174.154.128:30080/
+
+# Consulter les logs
+kubectl logs -n lab5-app deployment/web-deployment
+kubectl logs -n lab5-app deployment/db-deployment
+```
