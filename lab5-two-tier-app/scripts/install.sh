@@ -23,10 +23,16 @@ echo "[5/7] Déploiement des ConfigMaps..."
 kubectl apply -n lab5-app -f k8s/db-configmap.yaml --validate=false
 kubectl apply -n lab5-app -f k8s/web-configmap.yaml --validate=false
 
-echo "[6/7] Déploiement des Secrets..."
+echo "[6/9] Déploiement des Secrets..."
 kubectl apply -n lab5-app -f k8s/db-secret.yaml --validate=false
 
-echo "[7/7] Déploiement des manifests K8s..."
+echo "[7/9] Déploiement du Persistent Volume..."
+kubectl apply -f k8s/db-pv.yaml --validate=false
+
+echo "[8/9] Déploiement du Persistent Volume Claim..."
+kubectl apply -n lab5-app -f k8s/db-pvc.yaml --validate=false
+
+echo "[9/9] Déploiement des manifests K8s..."
 kubectl apply -n lab5-app -f k8s/db-deployment.yaml --validate=false
 kubectl apply -n lab5-app -f k8s/db-service.yaml --validate=false
 kubectl apply -n lab5-app -f k8s/web-deployment.yaml --validate=false

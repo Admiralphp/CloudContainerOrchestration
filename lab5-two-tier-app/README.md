@@ -76,9 +76,11 @@ lab5-two-tier-app/
 │   ├── db-configmap.yaml      # STEP 2: Configuration non sensible
 │   ├── web-configmap.yaml     # STEP 2: Configuration non sensible
 │   ├── db-secret.yaml         # STEP 2: Credentials sécurisés
+│   ├── db-pv.yaml             # STEP 3: Persistent Volume
+│   ├── db-pvc.yaml            # STEP 3: Persistent Volume Claim
 │   ├── web-deployment.yaml
 │   ├── web-service.yaml
-│   ├── db-deployment.yaml
+│   ├── db-deployment.yaml     # STEP 3: Monte le PVC
 │   └── db-service.yaml
 ├── scripts/
 │   └── install.sh
@@ -394,7 +396,288 @@ kubectl rollout restart deployment/db-deployment -n lab5-app
 
 ---
 
-## 9. Validation et Preuves de Succès
+## STEP 3 : Persistent Volumes (PV) et Persistent Volume Claims (PVC)
+
+### 9.1 Objectif
+
+Assurer la **persistance des données** de la base de données MySQL même en cas de :
+- Redémarrage des pods
+- Suppression accidentelle du deployment
+- Migration vers un autre nœud du cluster
+
+Sans PV/PVC, les données MySQL sont perdues à chaque redémarrage du pod car elles sont stockées dans le système de fichiers éphémère du conteneur.
+
+### 9.2 Architecture de Stockage
+
+```
+┌─────────────────────────────────────────┐
+│           MySQL Pod                     │
+│  ┌───────────────────────────────────┐  │
+│  │  Container: mysql:8.0             │  │
+│  │  Volume Mount: /var/lib/mysql     │  │
+│  └──────────────┬────────────────────┘  │
+│                 │                        │
+│                 ▼                        │
+│  ┌───────────────────────────────────┐  │
+│  │  Volume: mysql-storage            │  │
+│  │  Source: PVC (mysql-pvc)          │  │
+│  └──────────────┬────────────────────┘  │
+└─────────────────┼────────────────────────┘
+                  │
+                  ▼
+   ┌─────────────────────────────────┐
+   │  PersistentVolumeClaim          │
+   │  Name: mysql-pvc                │
+   │  Request: 1Gi                   │
+   │  StorageClass: local-path       │
+   └──────────────┬──────────────────┘
+                  │
+                  ▼
+   ┌─────────────────────────────────┐
+   │  PersistentVolume               │
+   │  Name: mysql-pv                 │
+   │  Capacity: 2Gi                  │
+   │  Path: /data/mysql (host)       │
+   └─────────────────────────────────┘
+```
+
+### 9.3 Persistent Volume (PV)
+
+#### `db-pv.yaml`
+```yaml
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: mysql-pv
+  namespace: lab5-app
+spec:
+  capacity:
+    storage: 2Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-path
+  hostPath:
+    path: /data/mysql
+    type: DirectoryOrCreate
+```
+
+**Caractéristiques** :
+- **Capacité** : 2Gi (supérieur au PVC pour avoir de la marge)
+- **Access Mode** : `ReadWriteOnce` (un seul nœud peut monter en lecture/écriture)
+- **Reclaim Policy** : `Retain` (les données sont conservées après suppression du PVC)
+- **StorageClass** : `local-path` (compatible K3s par défaut)
+- **HostPath** : `/data/mysql` sur le nœud K3s
+
+### 9.4 Persistent Volume Claim (PVC)
+
+#### `db-pvc.yaml`
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql-pvc
+  namespace: lab5-app
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 1Gi
+```
+
+**Utilisation** :
+- **Demande** : 1Gi de stockage
+- **Binding** : Kubernetes lie automatiquement ce PVC au PV `mysql-pv`
+- **Namespace** : `lab5-app` (doit correspondre au deployment)
+
+### 9.5 Modification du Deployment MySQL
+
+#### Ajout dans `db-deployment.yaml` :
+```yaml
+spec:
+  template:
+    spec:
+      containers:
+        - name: mysql
+          image: mysql:8.0
+          volumeMounts:
+            - name: mysql-storage
+              mountPath: /var/lib/mysql    # Répertoire de données MySQL
+      volumes:
+        - name: mysql-storage
+          persistentVolumeClaim:
+            claimName: mysql-pvc            # Référence au PVC
+```
+
+**Explication** :
+- **volumeMounts** : Monte le volume dans le conteneur à `/var/lib/mysql`
+- **volumes** : Définit le volume comme source le PVC `mysql-pvc`
+- MySQL stocke ses bases de données, tables et logs dans `/var/lib/mysql`
+
+### 9.6 Avantages de la Persistance
+
+#### 1. **Durabilité des Données**
+- Les données survivent aux redémarrages de pods
+- Protection contre les suppressions accidentelles
+- Backup facilité (sauvegarde du volume)
+
+#### 2. **Haute Disponibilité**
+- Migration de pod vers un autre nœud sans perte de données (avec stockage réseau)
+- Résilience face aux pannes matérielles
+
+#### 3. **Scalabilité**
+- Possibilité d'augmenter la taille du volume
+- Changement de StorageClass sans refaire le deployment
+
+#### 4. **Séparation du Stockage**
+- Cycle de vie indépendant : PV/PVC vs Deployment
+- Plusieurs deployments peuvent utiliser le même PVC (selon AccessMode)
+
+#### 5. **Production Ready**
+- Conforme aux best practices Kubernetes
+- Compatible avec tous les cloud providers (AWS EBS, Azure Disk, GCP PD)
+
+### 9.7 Types d'Access Modes
+
+| Access Mode | Description | Cas d'usage |
+|-------------|-------------|-------------|
+| **ReadWriteOnce (RWO)** | Lecture/écriture par un seul nœud | MySQL, PostgreSQL (1 replica) |
+| **ReadOnlyMany (ROX)** | Lecture seule par plusieurs nœuds | Assets statiques, configurations |
+| **ReadWriteMany (RWX)** | Lecture/écriture par plusieurs nœuds | NFS, applications distribuées |
+
+**Notre choix** : `ReadWriteOnce` car MySQL ne supporte pas l'écriture concurrente.
+
+### 9.8 StorageClass dans K3s
+
+K3s inclut par défaut le provisioner **local-path** :
+
+```bash
+# Vérifier les StorageClasses disponibles
+kubectl get storageclass
+
+# Résultat attendu :
+# NAME                   PROVISIONER             RECLAIMPOLICY   VOLUMEBINDINGMODE      AGE
+# local-path (default)   rancher.io/local-path   Delete          WaitForFirstConsumer   10d
+```
+
+**local-path** :
+- Stockage sur le système de fichiers local du nœud
+- Idéal pour environnements de développement et K3s
+- Pour production cloud : utiliser AWS EBS, Azure Disk, etc.
+
+### 9.9 Commandes de Déploiement STEP 3
+
+```bash
+# 1. Créer le Persistent Volume
+kubectl apply -f k8s/db-pv.yaml
+
+# 2. Créer le Persistent Volume Claim
+kubectl apply -n lab5-app -f k8s/db-pvc.yaml
+
+# 3. Vérifier le binding PV ↔ PVC
+kubectl get pv
+kubectl get pvc -n lab5-app
+
+# 4. Déployer la base de données avec persistance
+kubectl apply -n lab5-app -f k8s/db-deployment.yaml
+
+# 5. Vérifier le montage du volume
+kubectl describe pod -n lab5-app -l app=db
+```
+
+### 9.10 Vérification de la Persistance
+
+#### Test de persistance des données :
+
+```bash
+# 1. Insérer des données dans l'application web
+# Via http://10.174.154.67:30085/
+
+# 2. Vérifier les données dans MySQL
+kubectl exec -n lab5-app deployment/db-deployment -- \
+  mysql -uappuser -papppassword -e "SELECT * FROM appdb.people;"
+
+# 3. Supprimer le pod MySQL (simulation de crash)
+kubectl delete pod -n lab5-app -l app=db
+
+# 4. Attendre que le pod redémarre
+kubectl wait --for=condition=ready pod -l app=db -n lab5-app --timeout=60s
+
+# 5. Vérifier que les données sont toujours présentes
+kubectl exec -n lab5-app deployment/db-deployment -- \
+  mysql -uappuser -papppassword -e "SELECT * FROM appdb.people;"
+
+# ✅ Les données doivent être intactes !
+```
+
+### 9.11 Gestion du Volume
+
+#### Voir la taille utilisée :
+```bash
+# Sur le nœud K3s
+sudo du -sh /data/mysql
+```
+
+#### Nettoyer les données (attention : irréversible) :
+```bash
+# Supprimer le PVC (libère le volume)
+kubectl delete pvc mysql-pvc -n lab5-app
+
+# Supprimer le PV
+kubectl delete pv mysql-pv
+
+# Supprimer les données sur le nœud
+sudo rm -rf /data/mysql
+```
+
+#### Augmenter la taille du PVC :
+```bash
+# Éditer le PVC
+kubectl edit pvc mysql-pvc -n lab5-app
+
+# Modifier spec.resources.requests.storage
+# Exemple: 1Gi → 5Gi
+```
+
+### 9.12 Reclaim Policies
+
+| Policy | Comportement | Usage |
+|--------|--------------|-------|
+| **Retain** | Données conservées après suppression PVC | Production (sauvegarde manuelle) |
+| **Delete** | Données supprimées avec le PVC | Développement |
+| **Recycle** | Volume réinitialisé et réutilisable | Déprécié |
+
+**Notre choix** : `Retain` pour éviter les pertes de données accidentelles.
+
+### 9.13 Backup des Données
+
+```bash
+# Backup MySQL vers un fichier
+kubectl exec -n lab5-app deployment/db-deployment -- \
+  mysqldump -uroot -prootpassword --all-databases > backup.sql
+
+# Ou copier le volume directement
+sudo tar -czf mysql-backup-$(date +%Y%m%d).tar.gz -C /data/mysql .
+```
+
+### 9.14 Limitations de HostPath
+
+⚠️ **HostPath** (local-path) a des limitations :
+
+1. **Pas de haute disponibilité** : Les données sont liées à un nœud spécifique
+2. **Migration impossible** : Si le pod change de nœud, le volume n'est pas accessible
+3. **Pas de réplication** : Un seul point de défaillance
+
+**Pour production multi-nœuds**, utiliser :
+- **NFS** : Stockage réseau partagé
+- **Ceph/Rook** : Stockage distribué
+- **Cloud Storage** : AWS EBS, Azure Disk, GCP PD
+
+---
+
+## 10. Validation et Preuves de Succès
 
 Consultez le document `docs/VALIDATION.md` pour :
 - La checklist complète de conformité avec l'énoncé du LAB
