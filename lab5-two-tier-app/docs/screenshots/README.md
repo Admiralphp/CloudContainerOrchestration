@@ -66,7 +66,7 @@ kubectl logs -n lab5-app deployment/db-deployment --tail=20
 
 ### 6-9. Interface Web
 ```
-http://10.174.154.128:30080/
+http://10.174.154.128:30085/
 ```
 - 06 : Page vide
 - 07 : Formulaire rempli

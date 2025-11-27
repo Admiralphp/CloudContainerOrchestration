@@ -115,7 +115,7 @@ kubectl logs -n lab5-app deployment/db-deployment --tail=20
 - Confirme la création de la base de données
 
 ### 6. **Accès à l'Application Web**
-Ouvrir dans le navigateur : `http://10.174.154.128:30080/`
+Ouvrir dans le navigateur : `http://10.174.154.128:30085/`
 
 **Screenshot attendu** : `06-web-interface-empty.png`
 - Montre le formulaire vide avec les champs Nom et Email

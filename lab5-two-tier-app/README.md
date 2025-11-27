@@ -39,7 +39,7 @@ kubectl get all -n lab5-app
 ## 5. Test de l'application
 
 1. IP du nœud K3s : `10.174.154.128`
-2. Accéder à : `http://10.174.154.128:30080/`
+2. Accéder à : `http://10.174.154.128:30085/`
 3. Remplir le formulaire (nom, email) et valider.
 4. Vérifier que les données apparaissent dans la table des enregistrements.
 
@@ -92,7 +92,7 @@ kubectl get pods -n lab5-app
 kubectl get svc -n lab5-app
 
 # Tester l'accès web
-curl http://10.174.154.128:30080/
+curl http://10.174.154.128:30085/
 
 # Consulter les logs
 kubectl logs -n lab5-app deployment/web-deployment
