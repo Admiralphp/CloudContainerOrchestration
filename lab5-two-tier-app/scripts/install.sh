@@ -16,10 +16,17 @@ if ! sudo systemctl is-active --quiet k3s; then
     sleep 10
 fi
 
-echo "[4/4] Création du namespace..."
+echo "[4/7] Création du namespace..."
 kubectl apply -f k8s/namespace.yaml --validate=false
 
-echo "[5/5] Déploiement des manifests K8s..."
+echo "[5/7] Déploiement des ConfigMaps..."
+kubectl apply -n lab5-app -f k8s/db-configmap.yaml --validate=false
+kubectl apply -n lab5-app -f k8s/web-configmap.yaml --validate=false
+
+echo "[6/7] Déploiement des Secrets..."
+kubectl apply -n lab5-app -f k8s/db-secret.yaml --validate=false
+
+echo "[7/7] Déploiement des manifests K8s..."
 kubectl apply -n lab5-app -f k8s/db-deployment.yaml --validate=false
 kubectl apply -n lab5-app -f k8s/db-service.yaml --validate=false
 kubectl apply -n lab5-app -f k8s/web-deployment.yaml --validate=false

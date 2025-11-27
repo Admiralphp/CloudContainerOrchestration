@@ -73,6 +73,9 @@ lab5-two-tier-app/
 │       └── index.html
 ├── k8s/
 │   ├── namespace.yaml
+│   ├── db-configmap.yaml      # STEP 2: Configuration non sensible
+│   ├── web-configmap.yaml     # STEP 2: Configuration non sensible
+│   ├── db-secret.yaml         # STEP 2: Credentials sécurisés
 │   ├── web-deployment.yaml
 │   ├── web-service.yaml
 │   ├── db-deployment.yaml
@@ -80,7 +83,9 @@ lab5-two-tier-app/
 ├── scripts/
 │   └── install.sh
 ├── docs/
-│   └── architecture.png
+│   ├── architecture.png
+│   ├── screenshots/
+│   └── VALIDATION.md
 ├── Dockerfile
 ├── README.md
 └── .gitignore
@@ -187,7 +192,209 @@ Cette séparation permet :
 - **Organisation** : Facilite la visualisation avec `kubectl get all -n lab5-app`
 - **Quotas potentiels** : Possibilité d'appliquer des ResourceQuotas par namespace
 
-## 8. Validation et Preuves de Succès
+---
+
+## STEP 2 : ConfigMaps et Secrets pour Amélioration de la Sécurité
+
+### 8.1 Objectif
+
+Améliorer la configuration et la sécurité en introduisant :
+- **ConfigMaps** : Pour les paramètres de configuration non sensibles
+- **Secrets** : Pour les credentials et mots de passe
+
+### 8.2 ConfigMaps Créés
+
+#### `db-configmap.yaml`
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: db-config
+  namespace: lab5-app
+data:
+  MYSQL_DATABASE: "appdb"
+```
+
+**Utilisation** : Stocke le nom de la base de données (non sensible)
+
+#### `web-configmap.yaml`
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: web-config
+  namespace: lab5-app
+data:
+  DB_HOST: "db-service"
+  DB_PORT: "3306"
+  DB_NAME: "appdb"
+```
+
+**Utilisation** : Stocke les paramètres de connexion (host, port, nom de DB)
+
+### 8.3 Secret Créé
+
+#### `db-secret.yaml`
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: db-secret
+  namespace: lab5-app
+type: Opaque
+data:
+  MYSQL_ROOT_PASSWORD: cm9vdHBhc3N3b3Jk    # rootpassword (base64)
+  MYSQL_USER: YXBwdXNlcg==                 # appuser (base64)
+  MYSQL_PASSWORD: YXBwcGFzc3dvcmQ=         # apppassword (base64)
+  DB_PASSWORD: YXBwcGFzc3dvcmQ=            # apppassword (base64)
+  DB_USER: YXBwdXNlcg==                    # appuser (base64)
+```
+
+**Note** : Les valeurs sont encodées en base64 pour la sécurité.
+
+### 8.4 Modification des Deployments
+
+#### Dans `db-deployment.yaml` :
+```yaml
+env:
+  - name: MYSQL_ROOT_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db-secret
+        key: MYSQL_ROOT_PASSWORD
+  - name: MYSQL_DATABASE
+    valueFrom:
+      configMapKeyRef:
+        name: db-config
+        key: MYSQL_DATABASE
+  - name: MYSQL_USER
+    valueFrom:
+      secretKeyRef:
+        name: db-secret
+        key: MYSQL_USER
+  - name: MYSQL_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db-secret
+        key: MYSQL_PASSWORD
+```
+
+#### Dans `web-deployment.yaml` :
+```yaml
+env:
+  - name: DB_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: web-config
+        key: DB_HOST
+  - name: DB_PORT
+    valueFrom:
+      configMapKeyRef:
+        name: web-config
+        key: DB_PORT
+  - name: DB_USER
+    valueFrom:
+      secretKeyRef:
+        name: db-secret
+        key: DB_USER
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db-secret
+        key: DB_PASSWORD
+  - name: DB_NAME
+    valueFrom:
+      configMapKeyRef:
+        name: web-config
+        key: DB_NAME
+```
+
+### 8.5 Avantages de cette Approche
+
+#### Sécurité Améliorée
+- **Secrets encodés** : Les mots de passe ne sont plus en clair dans les YAML
+- **RBAC possible** : Contrôle d'accès granulaire aux Secrets
+- **Chiffrement au repos** : Les Secrets peuvent être chiffrés dans etcd
+
+#### Gestion Centralisée
+- **Single Source of Truth** : Une seule ConfigMap/Secret pour plusieurs deployments
+- **Mise à jour facilitée** : Modification centralisée sans redéployer les pods
+- **Réutilisabilité** : Partage de configuration entre plusieurs applications
+
+#### Séparation des Responsabilités
+- **DevOps** : Gère les ConfigMaps (configuration applicative)
+- **SecOps** : Gère les Secrets (credentials sensibles)
+- **Développeurs** : Se concentrent sur le code, pas sur la configuration
+
+#### Environnements Multiples
+- ConfigMaps/Secrets différents par environnement (dev, staging, prod)
+- Même code de déploiement, configuration adaptée
+- Facilite le CI/CD
+
+### 8.6 Commandes de Déploiement STEP 2
+
+```bash
+# 1. Créer le namespace
+kubectl apply -f k8s/namespace.yaml
+
+# 2. Créer les ConfigMaps
+kubectl apply -n lab5-app -f k8s/db-configmap.yaml
+kubectl apply -n lab5-app -f k8s/web-configmap.yaml
+
+# 3. Créer les Secrets
+kubectl apply -n lab5-app -f k8s/db-secret.yaml
+
+# 4. Déployer les applications
+kubectl apply -n lab5-app -f k8s/db-deployment.yaml
+kubectl apply -n lab5-app -f k8s/db-service.yaml
+kubectl apply -n lab5-app -f k8s/web-deployment.yaml
+kubectl apply -n lab5-app -f k8s/web-service.yaml
+
+# 5. Vérifier les ConfigMaps et Secrets
+kubectl get configmaps -n lab5-app
+kubectl get secrets -n lab5-app
+kubectl describe configmap web-config -n lab5-app
+kubectl describe secret db-secret -n lab5-app
+```
+
+### 8.7 Vérification de la Configuration
+
+```bash
+# Voir les variables d'environnement d'un pod web
+kubectl exec -n lab5-app deployment/web-deployment -- env | grep DB
+
+# Voir les variables d'environnement du pod MySQL
+kubectl exec -n lab5-app deployment/db-deployment -- env | grep MYSQL
+```
+
+### 8.8 Génération des Valeurs Base64 pour Secrets
+
+Si vous devez changer les mots de passe, utilisez :
+
+```bash
+# Linux/Mac
+echo -n "nouveaumotdepasse" | base64
+
+# Windows PowerShell
+[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes("nouveaumotdepasse"))
+```
+
+### 8.9 Rotation des Secrets
+
+Pour mettre à jour un mot de passe :
+
+```bash
+# 1. Éditer le Secret
+kubectl edit secret db-secret -n lab5-app
+
+# 2. Redémarrer les pods pour charger le nouveau Secret
+kubectl rollout restart deployment/web-deployment -n lab5-app
+kubectl rollout restart deployment/db-deployment -n lab5-app
+```
+
+---
+
+## 9. Validation et Preuves de Succès
 
 Consultez le document `docs/VALIDATION.md` pour :
 - La checklist complète de conformité avec l'énoncé du LAB
