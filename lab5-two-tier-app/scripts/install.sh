@@ -9,14 +9,21 @@ sudo docker build -t "$IMAGE_NAME" .
 echo "[2/4] Push de l'image vers le registre..."
 sudo docker push "$IMAGE_NAME"
 
-echo "[3/4] Création du namespace..."
-kubectl apply -f k8s/namespace.yaml
+echo "[3/4] Vérification de K3s..."
+if ! sudo systemctl is-active --quiet k3s; then
+    echo "K3s n'est pas actif, démarrage..."
+    sudo systemctl start k3s
+    sleep 10
+fi
 
-echo "[4/4] Déploiement des manifests K8s..."
-kubectl apply -n lab5-app -f k8s/db-deployment.yaml
-kubectl apply -n lab5-app -f k8s/db-service.yaml
-kubectl apply -n lab5-app -f k8s/web-deployment.yaml
-kubectl apply -n lab5-app -f k8s/web-service.yaml
+echo "[4/4] Création du namespace..."
+kubectl apply -f k8s/namespace.yaml --validate=false
+
+echo "[5/5] Déploiement des manifests K8s..."
+kubectl apply -n lab5-app -f k8s/db-deployment.yaml --validate=false
+kubectl apply -n lab5-app -f k8s/db-service.yaml --validate=false
+kubectl apply -n lab5-app -f k8s/web-deployment.yaml --validate=false
+kubectl apply -n lab5-app -f k8s/web-service.yaml --validate=false
 
 echo "Déploiement terminé."
 echo "Vérifie avec : kubectl get all -n lab5-app"
