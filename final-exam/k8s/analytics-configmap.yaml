@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: analytics-config
+  namespace: final-exam
+data:
+  PORT: "4000"
+  MONGO_URI: "mongodb://mongodb-service:27017"
+  MONGO_DB_NAME: "analytics_db"

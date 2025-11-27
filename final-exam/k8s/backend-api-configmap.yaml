@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-api-config
+  namespace: final-exam
+data:
+  PORT: "3000"
+  DB_HOST: "postgres-service"
+  DB_PORT: "5432"
+  DB_NAME: "tasks_db"
+  ANALYTICS_SERVICE_URL: "http://analytics-service:4000"

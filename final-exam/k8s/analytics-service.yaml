@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: analytics-service
+  namespace: final-exam
+  labels:
+    app: analytics
+spec:
+  type: ClusterIP
+  selector:
+    app: analytics
+  ports:
+  - port: 4000
+    targetPort: 4000
+    name: http
