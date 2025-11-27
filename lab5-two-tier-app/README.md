@@ -699,5 +699,445 @@ curl http://10.174.154.67:30085/
 
 # Consulter les logs
 kubectl logs -n lab5-app deployment/web-deployment
-kubectl logs -n lab5-app deployment/db-deployment
+kubectl logs -n lab5-app statefulset/postgres
 ```
+
+---
+
+## LAB 8 : Migration vers StatefulSet pour PostgreSQL
+
+### 11.1 Pourquoi Migrer vers StatefulSet ?
+
+#### Limitations des Deployments pour les Bases de Données
+
+Dans les LABs précédents (5-7), nous utilisions un **Deployment** pour MySQL/PostgreSQL. Cette approche fonctionne mais présente plusieurs limitations :
+
+| Problème | Impact | Exemple |
+|----------|--------|---------|
+| **Noms de pods aléatoires** | `db-deployment-7f8d9-xyz12` change à chaque restart | Impossible de cibler un pod spécifique |
+| **Pas d'identité réseau stable** | Connexion impossible à une instance précise | Réplication master-slave impossible |
+| **Gestion manuelle des volumes** | Création manuelle PV/PVC requise | Erreurs humaines, complexité |
+| **Pas d'ordre de démarrage** | Pods démarrent/s'arrêtent aléatoirement | Problèmes de synchronisation |
+| **Scaling difficile** | Pas de coordination entre réplicas | Corruption de données possible |
+| **Pas de réplication** | Configuration master-slave impossible | Pas de haute disponibilité |
+
+#### Avantages des StatefulSets
+
+StatefulSet est **spécifiquement conçu** pour les applications stateful (bases de données, systèmes distribués, clusters) :
+
+| Fonctionnalité | Description | Bénéfice |
+|----------------|-------------|----------|
+| **Identité stable** | `postgres-0`, `postgres-1`, `postgres-2` | Noms prévisibles et constants |
+| **DNS stable** | `postgres-0.postgres-headless.lab5-app.svc.cluster.local` | Adressage direct d'un pod |
+| **Déploiement ordonné** | Séquentiel : 0 → 1 → 2 | Garantit l'ordre d'initialisation |
+| **Suppression ordonnée** | Inverse : 2 → 1 → 0 | Graceful shutdown propre |
+| **Volume automatique** | `volumeClaimTemplates` crée PVC par pod | Pas de gestion manuelle |
+| **Storage persistant** | Chaque pod a son volume dédié | Données conservées |
+| **HA Ready** | Facilite master-slave, clustering | Production-ready |
+
+### 11.2 Migration de MySQL vers PostgreSQL
+
+Nous migrons également de **MySQL vers PostgreSQL** pour des raisons de :
+- **Performance** : Meilleur pour les applications complexes
+- **Standards** : Meilleur support SQL standard
+- **Réplication** : Streaming replication native plus robuste
+- **Extensions** : PostGIS, pg_stat_statements, etc.
+
+### 11.3 Architecture LAB 8
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Kubernetes Cluster                        │
+│                                                              │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │         Namespace: lab5-app                            │ │
+│  │                                                         │ │
+│  │  ┌──────────────────┐      ┌─────────────────────┐   │ │
+│  │  │  Web Deployment  │      │  StatefulSet        │   │ │
+│  │  │  (2 replicas)    │──────│  postgres           │   │ │
+│  │  │                  │      │                      │   │ │
+│  │  │  web-xxx-pod1    │      │  ┌───────────────┐  │   │ │
+│  │  │  web-xxx-pod2    │      │  │  postgres-0   │  │   │ │
+│  │  └──────────────────┘      │  │  (primary)    │  │   │ │
+│  │           │                 │  └───────────────┘  │   │ │
+│  │           │                 │         │           │   │ │
+│  │           │                 │         ▼           │   │ │
+│  │           │                 │  ┌───────────────┐  │   │ │
+│  │           │                 │  │     PVC       │  │   │ │
+│  │           │                 │  │ postgres-     │  │   │ │
+│  │           │                 │  │ storage-      │  │   │ │
+│  │           │                 │  │ postgres-0    │  │   │ │
+│  │           │                 │  │    (5Gi)      │  │   │ │
+│  │           │                 │  └───────────────┘  │   │ │
+│  │           │                 └─────────────────────┘   │ │
+│  │           │                                           │ │
+│  │           ▼                          ▼                │ │
+│  │  ┌──────────────┐         ┌─────────────────┐       │ │
+│  │  │ web-service  │         │   db-service    │       │ │
+│  │  │ NodePort     │         │   ClusterIP     │       │ │
+│  │  │ :30085       │         │   :5432         │       │ │
+│  │  └──────────────┘         └─────────────────┘       │ │
+│  │                                    │                  │ │
+│  │                           ┌────────────────┐         │ │
+│  │                           │ postgres-      │         │ │
+│  │                           │ headless       │         │ │
+│  │                           │ (DNS stable)   │         │ │
+│  │                           └────────────────┘         │ │
+│  └─────────────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────────────┘
+
+Client Browser ──> NodePort :30085 ──> Web Pods ──> db-service ──> postgres-0
+                                                         │
+                        Headless Service: postgres-0.postgres-headless...
+```
+
+### 11.4 Fichiers Créés/Modifiés
+
+#### Nouveaux fichiers :
+- `k8s/postgres-statefulset.yaml` - StatefulSet avec volumeClaimTemplates
+- `k8s/postgres-headless-service.yaml` - Headless service (DNS stable)
+- `k8s/postgres-service.yaml` - Service normal (load balancing)
+- `scripts/test-statefulset.sh` - Script de test complet
+
+#### Fichiers supprimés :
+- ~~`k8s/db-pv.yaml`~~ - Plus nécessaire (auto-provisioning)
+- ~~`k8s/db-pvc.yaml`~~ - Plus nécessaire (volumeClaimTemplates)
+- ~~`k8s/db-deployment.yaml`~~ - Remplacé par StatefulSet
+
+#### Fichiers modifiés :
+- `k8s/db-configmap.yaml` - POSTGRES_DB au lieu de MYSQL_DATABASE
+- `k8s/db-secret.yaml` - POSTGRES_USER/PASSWORD au lieu de MYSQL
+- `k8s/web-configmap.yaml` - Connexion PostgreSQL
+- `scripts/install.sh` - Ordre de déploiement adapté
+
+### 11.5 StatefulSet PostgreSQL
+
+#### `postgres-statefulset.yaml`
+
+```yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: lab5-app
+spec:
+  serviceName: "postgres-headless"    # Référence au headless service
+  replicas: 1                         # Peut scaler à 2-3
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15
+          ports:
+            - containerPort: 5432
+              name: postgres
+          env:
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: db-config
+                  key: POSTGRES_DB
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: db-secret
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-secret
+                  key: POSTGRES_PASSWORD
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: postgres-storage
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:               # Auto-création PVC
+    - metadata:
+        name: postgres-storage
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: "local-path"
+        resources:
+          requests:
+            storage: 5Gi
+```
+
+**Points clés** :
+- `serviceName`: Lien vers le headless service
+- `volumeClaimTemplates`: Crée automatiquement `postgres-storage-postgres-0`
+- `PGDATA`: Sous-répertoire pour éviter conflits de permissions
+
+### 11.6 Headless Service
+
+#### `postgres-headless-service.yaml`
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-headless
+  namespace: lab5-app
+spec:
+  clusterIP: None                    # Headless !
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+      name: postgres
+```
+
+**Rôle** : Fournit un DNS stable pour chaque pod :
+- `postgres-0.postgres-headless.lab5-app.svc.cluster.local`
+- `postgres-1.postgres-headless.lab5-app.svc.cluster.local`
+
+### 11.7 Service Normal
+
+#### `postgres-service.yaml`
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: db-service
+  namespace: lab5-app
+spec:
+  type: ClusterIP
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+```
+
+**Rôle** : Load-balancing pour les applications (web app)
+
+### 11.8 volumeClaimTemplates Expliqué
+
+`volumeClaimTemplates` est la fonctionnalité clé des StatefulSets :
+
+#### Comment ça fonctionne :
+
+1. **Création automatique** : Pour chaque replica, Kubernetes crée un PVC
+   ```
+   Replica 0 → postgres-storage-postgres-0 (5Gi)
+   Replica 1 → postgres-storage-postgres-1 (5Gi)
+   Replica 2 → postgres-storage-postgres-2 (5Gi)
+   ```
+
+2. **Binding automatique** : Chaque PVC est lié au pod correspondant
+   ```
+   postgres-0 → monte postgres-storage-postgres-0
+   postgres-1 → monte postgres-storage-postgres-1
+   ```
+
+3. **Persistance** : PVC survit même si :
+   - Pod est supprimé
+   - StatefulSet est supprimé
+   - Réplicas est réduit (scale down)
+
+4. **Réutilisation** : Si on scale up, les anciens PVC sont réutilisés
+   ```bash
+   kubectl scale statefulset postgres --replicas=0  # postgres-1 supprimé
+   kubectl scale statefulset postgres --replicas=2  # postgres-1 recréé avec même PVC
+   ```
+
+#### Avantages vs PV/PVC manuels :
+
+| Aspect | PV/PVC Manuel (LAB 5-7) | volumeClaimTemplates (LAB 8) |
+|--------|-------------------------|------------------------------|
+| Création | Manuelle (2 fichiers) | Automatique |
+| Scaling | 1 PVC partagé | 1 PVC par pod |
+| Gestion | Erreurs possibles | Zéro configuration |
+| Nettoyage | Manuel | Automatique mais retenu |
+
+### 11.9 Procédure de Déploiement LAB 8
+
+```bash
+# 1. Nettoyer l'ancien déploiement (si LAB 5-7 existe)
+kubectl delete namespace lab5-app
+
+# 2. Déployer avec le script mis à jour
+cd ~/CloudContainerOrchestration/lab5-two-tier-app
+sudo ./scripts/install.sh
+
+# 3. Vérifier le StatefulSet
+kubectl get statefulset -n lab5-app
+kubectl get pods -n lab5-app -l app=postgres
+
+# 4. Vérifier les PVCs auto-créés
+kubectl get pvc -n lab5-app
+
+# 5. Tester les DNS stables
+kubectl run -n lab5-app dns-test --image=busybox:1.28 --rm -it -- \
+  nslookup postgres-0.postgres-headless.lab5-app.svc.cluster.local
+
+# 6. Exécuter les tests complets
+sudo bash scripts/test-statefulset.sh
+```
+
+### 11.10 Tests de Validation
+
+Le script `test-statefulset.sh` effectue 7 tests :
+
+#### Test 1 : Nommage Prévisible
+```bash
+kubectl get pods -n lab5-app -l app=postgres
+# Résultat : postgres-0 (pas de suffixe aléatoire)
+```
+
+#### Test 2 : DNS Stable
+```bash
+nslookup postgres-0.postgres-headless.lab5-app.svc.cluster.local
+# Résultat : Adresse IP du pod postgres-0
+```
+
+#### Test 3 : PVC Automatique
+```bash
+kubectl get pvc -n lab5-app
+# Résultat : postgres-storage-postgres-0 créé automatiquement
+```
+
+#### Test 4 : Persistance des Données
+```bash
+# Insérer données
+kubectl exec postgres-0 -- psql -U appuser -d appdb -c \
+  "CREATE TABLE test (id INT, data VARCHAR(50));"
+  
+# Supprimer pod
+kubectl delete pod postgres-0 -n lab5-app
+
+# Vérifier après restart
+kubectl exec postgres-0 -- psql -U appuser -d appdb -c \
+  "SELECT * FROM test;"
+# ✓ Données toujours présentes
+```
+
+#### Test 5 : Identité Stable
+```bash
+# Après suppression, même nom
+kubectl get pod postgres-0 -n lab5-app
+# AGE récent mais nom identique
+```
+
+#### Test 6 : Scaling Séquentiel
+```bash
+kubectl scale statefulset postgres --replicas=3 -n lab5-app
+
+# Ordre de création : postgres-0 → postgres-1 → postgres-2
+# postgres-1 attend que postgres-0 soit Ready
+```
+
+#### Test 7 : Headless vs Regular Service
+```bash
+kubectl get svc -n lab5-app
+# postgres-headless : ClusterIP None
+# db-service : ClusterIP assignée
+```
+
+### 11.11 Scaling du StatefulSet
+
+#### Scale Up (1 → 3 replicas)
+
+```bash
+# Augmenter à 3 réplicas
+kubectl scale statefulset postgres --replicas=3 -n lab5-app
+
+# Observer la création séquentielle
+kubectl get pods -n lab5-app -l app=postgres -w
+
+# Résultat :
+# postgres-0 : Running
+# postgres-1 : PodInitializing (attend postgres-0)
+# postgres-2 : Pending (attend postgres-1)
+
+# Vérifier les PVCs créés
+kubectl get pvc -n lab5-app
+# postgres-storage-postgres-0 (5Gi)
+# postgres-storage-postgres-1 (5Gi)
+# postgres-storage-postgres-2 (5Gi)
+```
+
+#### Scale Down (3 → 1 replica)
+
+```bash
+# Réduire à 1 replica
+kubectl scale statefulset postgres --replicas=1 -n lab5-app
+
+# Ordre de suppression : postgres-2 → postgres-1
+kubectl get pods -n lab5-app -l app=postgres -w
+
+# ⚠️ Les PVCs sont CONSERVÉS
+kubectl get pvc -n lab5-app
+# postgres-storage-postgres-1 : Bound (mais non utilisé)
+# postgres-storage-postgres-2 : Bound (mais non utilisé)
+```
+
+**Note** : PVCs retenues permettent de rescaler sans perte de données.
+
+### 11.12 Configuration Réplication (Avancé)
+
+Pour configurer PostgreSQL en mode Primary-Replica (futur LAB) :
+
+```yaml
+# postgres-0 = Primary (lecture/écriture)
+# postgres-1, postgres-2 = Replicas (lecture seule)
+
+env:
+  - name: POSTGRES_REPLICA_MODE
+    value: "slave"
+  - name: POSTGRES_MASTER_SERVICE
+    value: "postgres-0.postgres-headless"
+```
+
+### 11.13 Rollback vers Deployment
+
+Si nécessaire, pour revenir au Deployment :
+
+```bash
+# 1. Sauvegarder les données
+kubectl exec postgres-0 -n lab5-app -- pg_dump -U appuser appdb > backup.sql
+
+# 2. Supprimer StatefulSet
+kubectl delete statefulset postgres -n lab5-app
+
+# 3. Recréer Deployment
+kubectl apply -f k8s/db-deployment-backup.yaml
+
+# 4. Restaurer les données
+kubectl exec db-deployment-xxx -n lab5-app -- psql -U appuser appdb < backup.sql
+```
+
+### 11.14 Comparaison Deployment vs StatefulSet
+
+| Critère | Deployment | StatefulSet |
+|---------|-----------|-------------|
+| **Noms pods** | `db-xxx-random` | `postgres-0, postgres-1` |
+| **DNS** | Aléatoire | Stable par pod |
+| **Volume** | 1 PVC partagé | 1 PVC par pod |
+| **Ordre** | Aléatoire | Séquentiel |
+| **Scaling** | Parallèle | Ordonné |
+| **Use case** | Apps stateless | Bases de données, clusters |
+| **Réplication** | ❌ Impossible | ✅ Possible |
+| **HA** | ❌ Difficile | ✅ Facile |
+
+### 11.15 Résumé des Améliorations LAB 8
+
+✅ **Migration MySQL → PostgreSQL** : Meilleure performance et réplication  
+✅ **Deployment → StatefulSet** : Identité et ordre garantis  
+✅ **volumeClaimTemplates** : Auto-provisioning des PVCs  
+✅ **Headless Service** : DNS stable par pod  
+✅ **Ready pour HA** : Base pour réplication master-slave  
+✅ **Scripts de test** : Validation automatisée  
+✅ **Production-ready** : Suit les best practices Kubernetes
+
+---
+
+## 12. Accès et Validation Finale

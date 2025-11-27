@@ -4,4 +4,4 @@ metadata:
   name: db-config
   namespace: lab5-app
 data:
-  MYSQL_DATABASE: "appdb"
+  POSTGRES_DB: "appdb"

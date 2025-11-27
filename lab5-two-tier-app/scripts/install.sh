@@ -26,17 +26,32 @@ kubectl apply -n lab5-app -f k8s/web-configmap.yaml --validate=false
 echo "[6/9] Déploiement des Secrets..."
 kubectl apply -n lab5-app -f k8s/db-secret.yaml --validate=false
 
-echo "[7/9] Déploiement du Persistent Volume..."
-kubectl apply -f k8s/db-pv.yaml --validate=false
+echo "[7/9] Déploiement du Headless Service (pour StatefulSet)..."
+kubectl apply -n lab5-app -f k8s/postgres-headless-service.yaml --validate=false
 
-echo "[8/9] Déploiement du Persistent Volume Claim..."
-kubectl apply -n lab5-app -f k8s/db-pvc.yaml --validate=false
+echo "[8/9] Déploiement du StatefulSet PostgreSQL..."
+kubectl apply -n lab5-app -f k8s/postgres-statefulset.yaml --validate=false
 
-echo "[9/9] Déploiement des manifests K8s..."
-kubectl apply -n lab5-app -f k8s/db-deployment.yaml --validate=false
-kubectl apply -n lab5-app -f k8s/db-service.yaml --validate=false
+echo "Attente du StatefulSet postgres-0..."
+kubectl wait --for=condition=ready pod/postgres-0 -n lab5-app --timeout=120s
+
+echo "[9/9] Déploiement des Services et Web App..."
+kubectl apply -n lab5-app -f k8s/postgres-service.yaml --validate=false
 kubectl apply -n lab5-app -f k8s/web-deployment.yaml --validate=false
 kubectl apply -n lab5-app -f k8s/web-service.yaml --validate=false
 
 echo "Déploiement terminé."
-echo "Vérifie avec : kubectl get all -n lab5-app"
+echo ""
+echo "=== StatefulSet Information ==="
+kubectl get statefulset -n lab5-app
+echo ""
+echo "=== Pods ==="
+kubectl get pods -n lab5-app -l app=postgres
+echo ""
+echo "=== PVCs (auto-created) ==="
+kubectl get pvc -n lab5-app
+echo ""
+echo "=== Services ==="
+kubectl get svc -n lab5-app
+echo ""
+echo "Accès web: http://10.174.154.67:30085/"
