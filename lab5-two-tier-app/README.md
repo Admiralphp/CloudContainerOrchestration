@@ -38,10 +38,29 @@ kubectl get all -n lab5-app
 
 ## 5. Test de l'application
 
-1. IP du nœud K3s : `10.174.154.128`
-2. Accéder à : `http://10.174.154.128:30085/`
+1. IP du nœud K3s : `10.174.154.67`
+2. Accéder à : `http://10.174.154.67:30085/`
 3. Remplir le formulaire (nom, email) et valider.
 4. Vérifier que les données apparaissent dans la table des enregistrements.
+
+### 📸 Captures d'écran de validation
+
+Toutes les captures d'écran sont disponibles dans le dossier [`docs/screenshots/`](docs/screenshots/).
+
+**Déploiement et Configuration :**
+- [Installation complète](https://github.com/Admiralphp/CloudContainerOrchestration/blob/main/lab5-two-tier-app/docs/screenshots/install-sh.png)
+- [Cluster K3s opérationnel](https://github.com/Admiralphp/CloudContainerOrchestration/blob/main/lab5-two-tier-app/docs/screenshots/01-cluster-nodes.png)
+- [Ressources déployées](https://github.com/Admiralphp/CloudContainerOrchestration/blob/main/lab5-two-tier-app/docs/screenshots/02-deployed-resources.png)
+- [Status des pods](https://github.com/Admiralphp/CloudContainerOrchestration/blob/main/lab5-two-tier-app/docs/screenshots/03-pods-status.png)
+- [Logs application web](https://github.com/Admiralphp/CloudContainerOrchestration/blob/main/lab5-two-tier-app/docs/screenshots/04-web-logs.png)
+- [Logs base de données](https://github.com/Admiralphp/CloudContainerOrchestration/blob/main/lab5-two-tier-app/docs/screenshots/05-db-logs.png)
+
+**Tests Fonctionnels :**
+- [Interface web vide](https://github.com/Admiralphp/CloudContainerOrchestration/blob/main/lab5-two-tier-app/docs/screenshots/06-web-interface-empty.png)
+- [Formulaire rempli](https://github.com/Admiralphp/CloudContainerOrchestration/blob/main/lab5-two-tier-app/docs/screenshots/07-form-filled.png)
+- [Données insérées](https://github.com/Admiralphp/CloudContainerOrchestration/blob/main/lab5-two-tier-app/docs/screenshots/08-data-inserted.png)
+- [Plusieurs enregistrements](https://github.com/Admiralphp/CloudContainerOrchestration/blob/main/lab5-two-tier-app/docs/screenshots/09-multiple-records.png)
+- [Vérification base de données](https://github.com/Admiralphp/CloudContainerOrchestration/blob/main/lab5-two-tier-app/docs/screenshots/10-db-verification.png)
 
 ## 6. Structure du projet
 
@@ -92,7 +111,7 @@ kubectl get pods -n lab5-app
 kubectl get svc -n lab5-app
 
 # Tester l'accès web
-curl http://10.174.154.128:30085/
+curl http://10.174.154.67:30085/
 
 # Consulter les logs
 kubectl logs -n lab5-app deployment/web-deployment

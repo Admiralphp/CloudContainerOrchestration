@@ -78,14 +78,14 @@ Pour compléter la validation du LAB, vous devez fournir les captures d'écran s
 ```bash
 kubectl get nodes
 ```
-**Screenshot attendu** : `01-cluster-nodes.png`
+**Screenshot** : ✅ [01-cluster-nodes.png](https://github.com/Admiralphp/CloudContainerOrchestration/blob/main/lab5-two-tier-app/docs/screenshots/01-cluster-nodes.png)
 - Montre que le cluster K3s est opérationnel
 
 ### 2. **Déploiement des Ressources**
 ```bash
 kubectl get all -n lab5-app
 ```
-**Screenshot attendu** : `02-deployed-resources.png`
+**Screenshot** : ✅ [02-deployed-resources.png](https://github.com/Admiralphp/CloudContainerOrchestration/blob/main/lab5-two-tier-app/docs/screenshots/02-deployed-resources.png)
 - Montre tous les pods, services et deployments en état `Running`
 - Confirme que web-deployment a 2 réplicas
 - Confirme que db-deployment a 1 replica
@@ -94,7 +94,7 @@ kubectl get all -n lab5-app
 ```bash
 kubectl get pods -n lab5-app -o wide
 ```
-**Screenshot attendu** : `03-pods-status.png`
+**Screenshot** : ✅ [03-pods-status.png](https://github.com/Admiralphp/CloudContainerOrchestration/blob/main/lab5-two-tier-app/docs/screenshots/03-pods-status.png)
 - Montre l'état `Running` de tous les pods
 - Affiche les adresses IP internes
 
@@ -102,7 +102,7 @@ kubectl get pods -n lab5-app -o wide
 ```bash
 kubectl logs -n lab5-app deployment/web-deployment --tail=20
 ```
-**Screenshot attendu** : `04-web-logs.png`
+**Screenshot** : ✅ [04-web-logs.png](https://github.com/Admiralphp/CloudContainerOrchestration/blob/main/lab5-two-tier-app/docs/screenshots/04-web-logs.png)
 - Montre que Flask démarre correctement
 - Confirme la connexion à la base de données
 
@@ -110,14 +110,14 @@ kubectl logs -n lab5-app deployment/web-deployment --tail=20
 ```bash
 kubectl logs -n lab5-app deployment/db-deployment --tail=20
 ```
-**Screenshot attendu** : `05-db-logs.png`
+**Screenshot** : ✅ [05-db-logs.png](https://github.com/Admiralphp/CloudContainerOrchestration/blob/main/lab5-two-tier-app/docs/screenshots/05-db-logs.png)
 - Montre que MySQL démarre correctement
 - Confirme la création de la base de données
 
 ### 6. **Accès à l'Application Web**
-Ouvrir dans le navigateur : `http://10.174.154.128:30085/`
+Ouvrir dans le navigateur : `http://10.174.154.67:30085/`
 
-**Screenshot attendu** : `06-web-interface-empty.png`
+**Screenshot** : ✅ [06-web-interface-empty.png](https://github.com/Admiralphp/CloudContainerOrchestration/blob/main/lab5-two-tier-app/docs/screenshots/06-web-interface-empty.png)
 - Montre le formulaire vide avec les champs Nom et Email
 - Montre la table vide au démarrage
 
@@ -126,20 +126,20 @@ Remplir le formulaire avec :
 - Nom : `Ahmed Ben Ali`
 - Email : `ahmed@example.com`
 
-**Screenshot attendu** : `07-form-filled.png`
+**Screenshot** : ✅ [07-form-filled.png](https://github.com/Admiralphp/CloudContainerOrchestration/blob/main/lab5-two-tier-app/docs/screenshots/07-form-filled.png)
 - Montre le formulaire rempli avant soumission
 
 ### 8. **Données Enregistrées**
 Après soumission du formulaire
 
-**Screenshot attendu** : `08-data-inserted.png`
+**Screenshot** : ✅ [08-data-inserted.png](https://github.com/Admiralphp/CloudContainerOrchestration/blob/main/lab5-two-tier-app/docs/screenshots/08-data-inserted.png)
 - Montre les données insérées dans la table
 - Confirme que l'insertion fonctionne correctement
 
 ### 9. **Insertion de Plusieurs Enregistrements**
 Ajouter 2-3 enregistrements supplémentaires
 
-**Screenshot attendu** : `09-multiple-records.png`
+**Screenshot** : ✅ [09-multiple-records.png](https://github.com/Admiralphp/CloudContainerOrchestration/blob/main/lab5-two-tier-app/docs/screenshots/09-multiple-records.png)
 - Montre plusieurs enregistrements dans la table
 - Prouve que la récupération et l'affichage fonctionnent
 
@@ -147,7 +147,7 @@ Ajouter 2-3 enregistrements supplémentaires
 ```bash
 kubectl exec -it -n lab5-app deployment/db-deployment -- mysql -uappuser -papppassword -e "SELECT * FROM appdb.people;"
 ```
-**Screenshot attendu** : `10-db-verification.png`
+**Screenshot** : ✅ [10-db-verification.png](https://github.com/Admiralphp/CloudContainerOrchestration/blob/main/lab5-two-tier-app/docs/screenshots/10-db-verification.png)
 - Montre les données directement depuis MySQL
 - Confirme la persistance des données
 
@@ -210,12 +210,18 @@ Avant de soumettre le projet, vérifiez :
 
 Le projet **LAB 5 - Two Tier Application** est **conforme à 95%** avec l'énoncé.
 
-**Seul point manquant** : Les screenshots de validation dans `docs/screenshots/`
+**Tous les points sont maintenant complets** ✅
 
-Une fois les captures d'écran ajoutées, le projet sera **100% conforme** et prêt pour la soumission.
+Le projet est **100% conforme** et prêt pour la soumission.
+
+### 📸 Galerie de Screenshots
+
+Toutes les captures d'écran de validation sont disponibles :
+- [Installation complète](https://github.com/Admiralphp/CloudContainerOrchestration/blob/main/lab5-two-tier-app/docs/screenshots/install-sh.png)
+- [Voir tous les screenshots](https://github.com/Admiralphp/CloudContainerOrchestration/tree/main/lab5-two-tier-app/docs/screenshots)
 
 ---
 
 **Date de validation** : 27 novembre 2025  
 **Validé par** : Mohamed Essid  
-**Statut** : ✅ Conforme (en attente des screenshots)
+**Statut** : ✅ 100% Conforme - Prêt pour soumission
